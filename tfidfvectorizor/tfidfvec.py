@@ -1,5 +1,6 @@
 import gzip
 import os
+import time
 
 import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -23,9 +24,9 @@ segs = bilstm.cut(["我昨天去清华大学。", "他明天去北京大学，�
 print(segs)
 
 
-MODELMAXLEN=1019
+MODELMAXLEN=1010
 GPUBATCHSIZE=10000
-
+MAXEXECTIME=3600
 
 class StemmedTfidfVectorizer(TfidfVectorizer):
 
@@ -38,6 +39,7 @@ class StemmedTfidfVectorizer(TfidfVectorizer):
         return lambda doc: (self.stemmer.stem(word) for word in analyzer(doc.replace('\n', ' ')))
 
 
+ts = time.process_time()
 with gzip.open(args.file, "rt", encoding='utf-8') as fr:
     with codecs.open("../bigram/"+base+'bigram.utf8', 'w', encoding='utf-8') as fb:
         result = []
@@ -54,7 +56,7 @@ with gzip.open(args.file, "rt", encoding='utf-8') as fr:
                         for bl in b:
                             if len(bl) >= MODELMAXLEN:
                                 c=[]
-                                while len(bl) > MODELMAXLEN:
+                                while len(bl) >= MODELMAXLEN:
                                     c.append(bl[:MODELMAXLEN])
                                     bl = bl[MODELMAXLEN:]
                                 c.append(bl)
@@ -66,14 +68,24 @@ with gzip.open(args.file, "rt", encoding='utf-8') as fr:
             else:
                 resl.append(_line)
 
-            while len(resl)>GPUBATCHSIZE:
-                print('.')
-                result.extend(bilstm.cut(resl[:GPUBATCHSIZE]))
+            while len(resl)>=GPUBATCHSIZE:
+                print('before:', len(resl))
+                try:
+                    result.extend(bilstm.cut(resl[:GPUBATCHSIZE]))
+                except:
+                    print('error')
                 resl = resl[GPUBATCHSIZE:]
+                print('after:', len(resl))
             counter += 1
+
+            te = time.process_time()
+            if te-ts > MAXEXECTIME:
+                print('time due,', MAXEXECTIME)
+                break
         if len(resl)>0:
+            print('final:', len(resl))
             result.extend(bilstm.cut(resl))
-        print(len(result))
+        print('TOTAL LINES:', len(result))
 
         vectorizer = TfidfVectorizer(
                                     analyzer='word',

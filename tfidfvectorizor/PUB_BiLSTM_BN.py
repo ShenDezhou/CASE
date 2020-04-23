@@ -140,9 +140,9 @@ class PUB_BiLSTM_BN:
         segments = []
         for linenumber in range(len(statelines)):
             stateline = statelines[linenumber].strip()
-            sentence = sentences[linenumber].strip()
+            sentence = sentences[linenumber]
             if len(stateline) != len(sentence):
-                print(linenumber)
+                print('mismatch:', linenumber)
             word = ""
             for i in range(len(stateline)):
                 word+=sentence[i]
